@@ -1,38 +1,48 @@
+// src/routes/products.router.js
 import { Router } from "express";
-import ProductManager from "../managers/ProductManager.js";
+import ProductModel from "../models/Product.js";
 
 const router = Router();
-const manager = new ProductManager("./products.json");
 
 router.get("/", async (req, res) => {
-  const products = await manager.getProducts();
-  res.json(products);
-});
+  try {
+    const { limit = 10, page = 1, sort, query } = req.query;
 
-router.get("/:pid", async (req, res) => {
-  const product = await manager.getProductById(req.params.pid);
-  product
-    ? res.json(product)
-    : res.status(404).json({ error: "Producto no encontrado" });
-});
+    let filter = {};
 
-router.post("/", async (req, res) => {
-  const newProduct = await manager.addProduct(req.body);
-  res.status(201).json(newProduct);
-});
+    if (query) {
+      filter = {
+        $or: [{ category: query }, { status: query === "true" }],
+      };
+    }
 
-router.put("/:pid", async (req, res) => {
-  const updated = await manager.updateProduct(req.params.pid, req.body);
-  updated
-    ? res.json(updated)
-    : res.status(404).json({ error: "Producto no encontrado" });
-});
+    let options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      lean: true,
+    };
 
-router.delete("/:pid", async (req, res) => {
-  const deleted = await manager.deleteProduct(req.params.pid);
-  deleted
-    ? res.json({ message: "Producto eliminado" })
-    : res.status(404).json({ error: "Producto no encontrado" });
+    if (sort) {
+      options.sort = { price: sort === "asc" ? 1 : -1 };
+    }
+
+    const result = await ProductModel.paginate(filter, options);
+
+    res.json({
+      status: "success",
+      payload: result.docs,
+      totalPages: result.totalPages,
+      prevPage: result.prevPage,
+      nextPage: result.nextPage,
+      page: result.page,
+      hasPrevPage: result.hasPrevPage,
+      hasNextPage: result.hasNextPage,
+      prevLink: result.hasPrevPage ? `?page=${result.prevPage}` : null,
+      nextLink: result.hasNextPage ? `?page=${result.nextPage}` : null,
+    });
+  } catch (error) {
+    res.status(500).json({ status: "error", error });
+  }
 });
 
 export default router;

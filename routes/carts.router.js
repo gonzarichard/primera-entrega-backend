@@ -1,30 +1,58 @@
+// src/routes/carts.router.js
 import { Router } from "express";
-import CartManager from "../managers/CartManager.js";
+import CartModel from "../models/Cart.js";
 
 const router = Router();
-const manager = new CartManager("./carts.json");
 
-router.post("/", async (req, res) => {
-  const newCart = await manager.createCart();
-  res.status(201).json(newCart);
-});
-
+// GET con populate
 router.get("/:cid", async (req, res) => {
-  const cart = await manager.getCartById(req.params.cid);
-  cart
-    ? res.json(cart.products)
-    : res.status(404).json({ error: "Carrito no encontrado" });
-});
-
-router.post("/:cid/product/:pid", async (req, res) => {
-  const updatedCart = await manager.addProductToCart(
-    req.params.cid,
-    req.params.pid,
+  const cart = await CartModel.findById(req.params.cid).populate(
+    "products.product",
   );
 
-  updatedCart
-    ? res.json(updatedCart)
-    : res.status(404).json({ error: "Carrito no encontrado" });
+  res.json(cart);
+});
+
+// DELETE producto
+router.delete("/:cid/products/:pid", async (req, res) => {
+  const { cid, pid } = req.params;
+
+  const cart = await CartModel.findById(cid);
+  cart.products = cart.products.filter((p) => p.product.toString() !== pid);
+
+  await cart.save();
+  res.send("Producto eliminado");
+});
+
+// PUT carrito completo
+router.put("/:cid", async (req, res) => {
+  const cart = await CartModel.findByIdAndUpdate(
+    req.params.cid,
+    { products: req.body },
+    { new: true },
+  );
+
+  res.json(cart);
+});
+
+// PUT cantidad
+router.put("/:cid/products/:pid", async (req, res) => {
+  const { cid, pid } = req.params;
+  const { quantity } = req.body;
+
+  const cart = await CartModel.findById(cid);
+
+  const product = cart.products.find((p) => p.product.toString() === pid);
+  if (product) product.quantity = quantity;
+
+  await cart.save();
+  res.json(cart);
+});
+
+// DELETE vaciar carrito
+router.delete("/:cid", async (req, res) => {
+  await CartModel.findByIdAndUpdate(req.params.cid, { products: [] });
+  res.send("Carrito vacío");
 });
 
 export default router;
